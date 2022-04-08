@@ -1,0 +1,19 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Automatad Adapter Params",
+    "description": "A schema which validates params accepted by the Automatad adapter",
+    "type": "object",
+
+    "properties": {
+      "placementId": {
+        "type": "string",
+        "description": "Placement ID"
+      },
+      "siteId": {
+        "type": "string",
+        "description": "Domain/Site ID"
+      }
+    },
+
+    "required": ["siteId"]
+  }
