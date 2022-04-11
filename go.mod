@@ -16,6 +16,7 @@ require (
 	github.com/lib/pq v1.10.4
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/mxmCherry/openrtb/v15 v15.0.1
+	github.com/oschwald/maxminddb-golang v1.9.0
 	github.com/prebid/go-gdpr v1.11.0
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
@@ -23,7 +24,7 @@ require (
 	github.com/rs/cors v1.8.2
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/spf13/viper v1.10.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/vrischmann/go-metrics-influxdb v0.1.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/yudai/gojsondiff v1.0.0

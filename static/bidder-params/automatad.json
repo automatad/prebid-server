@@ -5,15 +5,10 @@
     "type": "object",
 
     "properties": {
-      "placementId": {
+      "position": {
         "type": "string",
-        "description": "Placement ID"
-      },
-      "siteId": {
-        "type": "string",
-        "description": "Domain/Site ID"
+        "description": "Position field"
       }
     },
-
-    "required": ["siteId"]
+    "required": []
   }

@@ -1,6 +1,5 @@
 package openrtb_ext
 
 type ImpExtAutomatad struct {
-	PlacementID string `json:"placementId"`
-	SiteId      string `json:"siteId"`
+	Position string `json:"position"`
 }
