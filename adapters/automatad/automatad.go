@@ -30,13 +30,29 @@ func (a *adapter) MakeRequests(request *openrtb2.BidRequest, requestInfo *adapte
 		return nil, []error{err}
 	}
 
-	requestData := &adapters.RequestData{
-		Method: "POST",
-		Uri:    a.endpoint,
-		Body:   requestJSON,
+	db, err := InitDB()
+	if err != nil {
+		return nil, []error{err}
 	}
 
-	return []*adapters.RequestData{requestData}, nil
+	errs := []error{}
+	country, err := CountryFromIP(db, request.Device.IP)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	headers := http.Header{}
+	headers.Set("X-Automatad-Country", country)
+
+	requestData := &adapters.RequestData{
+
+		Method:  "POST",
+		Uri:     a.endpoint,
+		Body:    requestJSON,
+		Headers: headers,
+	}
+
+	return []*adapters.RequestData{requestData}, errs
 }
 
 func (a *adapter) MakeBids(request *openrtb2.BidRequest, requestData *adapters.RequestData, responseData *adapters.ResponseData) (*adapters.BidderResponse, []error) {
@@ -66,10 +82,11 @@ func (a *adapter) MakeBids(request *openrtb2.BidRequest, requestData *adapters.R
 	bidResponse := adapters.NewBidderResponseWithBidsCapacity(len(request.Imp))
 	bidResponse.Currency = response.Cur
 	for _, seatBid := range response.SeatBid {
-		for i, bid := range seatBid.Bid {
+		for i, _ := range seatBid.Bid {
 			b := &adapters.TypedBid{
-				Bid:     &seatBid.Bid[i],
-				BidType: getMediaTypeForImp(bid.ImpID, request.Imp),
+				Bid: &seatBid.Bid[i],
+				//BidType: getMediaTypeForImp(bid.ImpID, request.Imp),
+				BidType: openrtb_ext.BidTypeBanner,
 			}
 			bidResponse.Bids = append(bidResponse.Bids, b)
 		}
