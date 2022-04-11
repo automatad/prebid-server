@@ -30,20 +30,15 @@ func (a *adapter) MakeRequests(request *openrtb2.BidRequest, requestInfo *adapte
 		return nil, []error{err}
 	}
 
-	db, err := InitDB()
-	if err != nil {
-		return nil, []error{err}
-	}
-
+	headers := http.Header{}
 	errs := []error{}
-	country, err := CountryFromIP(db, request.Device.IP)
+
+	country, err := CountryFromIP(request.Device.IP)
 	if err != nil {
 		errs = append(errs, err)
 	}
-
-	headers := http.Header{}
 	headers.Set("X-Automatad-Country", country)
-
+	//}
 	requestData := &adapters.RequestData{
 
 		Method:  "POST",
