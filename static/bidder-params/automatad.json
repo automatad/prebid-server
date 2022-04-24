@@ -1,15 +1,14 @@
 {
     "$schema": "http://json-schema.org/draft-04/schema#",
-    "title": "Intent Adapter Params",
-    "description": "A schema which validates params accepted by the Intent adapter",
+    "title": "Automatad Adapter Params",
+    "description": "A schema which validates params accepted by the Automatad adapter",
     "type": "object",
   
     "properties": {
-      "placementId": {
+      "position": {
         "type": "string",
-        "description": "Placement ID"
+        "description": "Position field"
       }
     },
-  
-    "required": ["placementId"]
+    "required": []
   }
