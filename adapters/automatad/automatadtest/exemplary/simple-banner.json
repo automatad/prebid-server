@@ -62,7 +62,7 @@
 				  "bid": [
 					{
 					  "id": "8ee514f1-b2b8-4abb-89fd-084437d1e800",
-					  "impid": "test-video-imp-id",
+					  "impid": "test-banner-imp-id",
 					  "price": 0.5,
 					  "adm": "some-test-ad",
 					  "crid": "crid_10",
