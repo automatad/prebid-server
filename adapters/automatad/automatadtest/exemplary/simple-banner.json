@@ -1,61 +1,105 @@
 {
-	"id": "f25ca4b0-4860-424b-88c0-a94d09d6ac01",
-	"source": {
-		"tid": "992444fe-7e02-47fc-b18e-dc1787c23dee"
-	},
-	"tmax": 4500,
-	"imp": [{
-		"id": "div-gpt-ad-1460505748561-0",
-		"ext": {
-			"automatad": {
-				"siteId": "GqVEhg",
-				"placementId": "test"
-			}
-		},
-		"banner": {
-			"format": [{
+	"mockBidRequest": {
+	  "id": "test-request-id",
+	  "imp": [
+		{
+		  "id": "test-banner-imp-id",
+		  "banner": {
+			"format": [
+			  {
 				"w": 300,
 				"h": 250
-			}]
-		}
-	}, {
-		"id": "div-gpt-ad-1460505748561-1",
-		"ext": {
-			"automatad": {
-				"siteId": "13144379",
-				"position": "1249"
+			  }
+			]
+		  },
+		  "ext": {
+			"bidder": {
+			  "siteId": "123"
 			}
-		},
-		"banner": {
-			"format": [{
-				"w": 300,
-				"h": 50
-			}]
+		  }
 		}
-	}],
-	"test": 0,
-	"ext": {
-		"prebid": {
-			"auctiontimestamp": 1649409679362,
-			"targeting": {
-				"includewinners": true,
-				"includebidderkeys": false
-			},
-			"channel": {
-				"name": "pbjs",
-				"version": "v6.19.0-pre"
+	  ],
+	  "site": {
+		"id": "123"
+	  }
+	},
+	"httpCalls": [
+	  {
+		"expectedRequest": {
+		  "uri": "http://whatever.url",
+		  "body": {
+			"id": "test-request-id",
+			"imp": [
+			  {
+				"id": "test-banner-imp-id",
+				"banner": {
+				  "format": [
+					{
+					  "h": 250,
+					  "w": 300
+					}
+				  ]
+				},
+				"ext": {
+					"bidder": {
+					  "siteId": "123"
+					}
+				  }
+			  }
+			],
+			"site": {
+			  "id": "123"
 			}
-		}
-	},
-	"site": {
-        "id": "GqVEhg",
-		"publisher": {
-			"id": "1"
+		  }
 		},
-		"page": "https://hoverr.github.io/adapter_test/prebid_s2s.html"
-	},
-	"device": {
-		"w": 1440,
-		"h": 367
+		"mockResponse": {
+		  "status": 200,
+		  "body": {
+			"id": "test-request-id",
+			"seatbid": [
+				{
+				  "seat": "apacdex",
+				  "bid": [
+					{
+					  "id": "8ee514f1-b2b8-4abb-89fd-084437d1e800",
+					  "impid": "test-video-imp-id",
+					  "price": 0.5,
+					  "adm": "some-test-ad",
+					  "crid": "crid_10",
+					  "h": 250,
+					  "w": 300,
+					  "ext": {
+						"prebid": {
+						  "type": "banner"
+						}
+					  }
+					}
+				  ]
+				}
+			  ]
+		  }
+		}
 	}
-}
+	],
+	"expectedBidResponses": [
+	  {
+		"bids": [{
+		  "bid": {
+			"id": "8ee514f1-b2b8-4abb-89fd-084437d1e800",
+			"impid": "test-banner-imp-id",
+			"price": 0.5,
+			"adm": "some-test-ad",
+			"crid": "crid_10",
+			"w": 300,
+			"h": 250,
+			"ext": {
+			  "prebid": {
+				"type": "banner"
+			  }
+			}
+		  },
+		  "type": "banner"
+		}
+	  ]}
+	]
+  }
