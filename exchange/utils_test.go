@@ -35,18 +35,24 @@ func (p *permissionsMock) BidderSyncAllowed(ctx context.Context, bidder openrtb_
 	return true, nil
 }
 
-func (p *permissionsMock) AuctionActivitiesAllowed(ctx context.Context, bidderCoreName openrtb_ext.BidderName, bidder openrtb_ext.BidderName, PublisherID string, gdpr gdpr.Signal, consent string, aliasGVLIDs map[string]uint16) (allowBidRequest bool, passGeo bool, passID bool, err error) {
+func (p *permissionsMock) AuctionActivitiesAllowed(ctx context.Context, bidderCoreName openrtb_ext.BidderName, bidder openrtb_ext.BidderName, PublisherID string, gdprSignal gdpr.Signal, consent string, aliasGVLIDs map[string]uint16) (permissions gdpr.AuctionPermissions, err error) {
+	permissions = gdpr.AuctionPermissions{
+		PassGeo: p.passGeo,
+		PassID:  p.passID,
+	}
+
 	if p.allowAllBidders {
-		return true, p.passGeo, p.passID, p.activitiesError
+		permissions.AllowBidRequest = true
+		return permissions, p.activitiesError
 	}
 
 	for _, allowedBidder := range p.allowedBidders {
 		if bidder == allowedBidder {
-			allowBidRequest = true
+			permissions.AllowBidRequest = true
 		}
 	}
 
-	return allowBidRequest, p.passGeo, p.passID, p.activitiesError
+	return permissions, p.activitiesError
 }
 
 func assertReq(t *testing.T, bidderRequests []BidderRequest,
@@ -464,14 +470,14 @@ func TestCleanOpenRTBRequests(t *testing.T) {
 		consentedVendors map[string]bool
 	}{
 		{
-			req:              AuctionRequest{BidRequest: getTestBuildRequest(t), UserSyncs: &emptyUsersync{}},
+			req:              AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: getTestBuildRequest(t)}, UserSyncs: &emptyUsersync{}},
 			bidReqAssertions: assertReq,
 			hasError:         false,
 			applyCOPPA:       true,
 			consentedVendors: map[string]bool{"appnexus": true},
 		},
 		{
-			req:              AuctionRequest{BidRequest: newAdapterAliasBidRequest(t), UserSyncs: &emptyUsersync{}},
+			req:              AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: newAdapterAliasBidRequest(t)}, UserSyncs: &emptyUsersync{}},
 			bidReqAssertions: assertReq,
 			hasError:         false,
 			applyCOPPA:       false,
@@ -525,22 +531,22 @@ func TestCleanOpenRTBRequestsWithFPD(t *testing.T) {
 	}{
 		{
 			description: "Pass valid FPD data for bidder not found in the request",
-			req:         AuctionRequest{BidRequest: getTestBuildRequest(t), UserSyncs: &emptyUsersync{}, FirstPartyData: fpd},
+			req:         AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: getTestBuildRequest(t)}, UserSyncs: &emptyUsersync{}, FirstPartyData: fpd},
 			fpdExpected: false,
 		},
 		{
 			description: "Pass valid FPD data for bidders specified in request",
-			req:         AuctionRequest{BidRequest: newAdapterAliasBidRequest(t), UserSyncs: &emptyUsersync{}, FirstPartyData: fpd},
+			req:         AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: newAdapterAliasBidRequest(t)}, UserSyncs: &emptyUsersync{}, FirstPartyData: fpd},
 			fpdExpected: true,
 		},
 		{
 			description: "Bidders specified in request but there is no fpd data for this bidder",
-			req:         AuctionRequest{BidRequest: newAdapterAliasBidRequest(t), UserSyncs: &emptyUsersync{}, FirstPartyData: make(map[openrtb_ext.BidderName]*firstpartydata.ResolvedFirstPartyData)},
+			req:         AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: newAdapterAliasBidRequest(t)}, UserSyncs: &emptyUsersync{}, FirstPartyData: make(map[openrtb_ext.BidderName]*firstpartydata.ResolvedFirstPartyData)},
 			fpdExpected: false,
 		},
 		{
 			description: "No FPD data passed",
-			req:         AuctionRequest{BidRequest: newAdapterAliasBidRequest(t), UserSyncs: &emptyUsersync{}, FirstPartyData: nil},
+			req:         AuctionRequest{BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: newAdapterAliasBidRequest(t)}, UserSyncs: &emptyUsersync{}, FirstPartyData: nil},
 			fpdExpected: false,
 		},
 	}
@@ -560,6 +566,267 @@ func TestCleanOpenRTBRequestsWithFPD(t *testing.T) {
 				assert.Equal(t, "", bidderRequest.BidRequest.Site.Name, "Incorrect FPD site name")
 				assert.Equal(t, "", bidderRequest.BidRequest.User.Keywords, "Incorrect FPD user keywords")
 			}
+		}
+	}
+}
+
+func TestCleanOpenRTBRequestsWithBidResponses(t *testing.T) {
+	bidRespId1 := json.RawMessage(`{"id": "resp_id1"}`)
+	bidRespId2 := json.RawMessage(`{"id": "resp_id2"}`)
+
+	testCases := []struct {
+		description            string
+		storedBidResponses     map[string]map[string]json.RawMessage
+		imps                   []openrtb2.Imp
+		expectedBidderRequests map[string]BidderRequest
+	}{
+		{
+			description: "Request with imp with one bidder stored bid response",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID: "imp-id1",
+					Video: &openrtb2.Video{
+						W: 300,
+						H: 250,
+					},
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1},
+				},
+			},
+		},
+		{
+			description: "Request with imps with and without stored bid response for one bidder",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID: "imp-id1",
+					Video: &openrtb2.Video{
+						W: 300,
+						H: 250,
+					},
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+				{
+					ID:  "imp-id2",
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{
+						{ID: "imp-id2", Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`)},
+					}},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1},
+				},
+			},
+		},
+		{
+			description: "Request with imp with 2 bidders stored bid response",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1, "bidderB": bidRespId2},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID: "imp-id1",
+					Video: &openrtb2.Video{
+						W: 300,
+						H: 250,
+					},
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1,
+					},
+				},
+				"bidderB": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderB",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId2},
+				},
+			},
+		},
+		{
+			description: "Request with 2 imps: with 2 bidders stored bid response and imp without stored responses",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1, "bidderB": bidRespId2},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID: "imp-id1",
+					Video: &openrtb2.Video{
+						W: 300,
+						H: 250,
+					},
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+				{
+					ID:  "imp-id2",
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{
+						{ID: "imp-id2", Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`)},
+					}},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1},
+				},
+				"bidderB": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderB",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId2},
+				},
+			},
+		},
+		{
+			description: "Request with 3 imps: with 2 bidders stored bid response and 2 imps without stored responses",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1, "bidderB": bidRespId2},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID:  "imp-id3",
+					Ext: json.RawMessage(`{"bidderC": {"placementId":"1234"}}`),
+				},
+				{
+					ID: "imp-id1",
+					Video: &openrtb2.Video{
+						W: 300,
+						H: 250,
+					},
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+				{
+					ID:  "imp-id2",
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{
+						{ID: "imp-id2", Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`)},
+					}},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1},
+				},
+				"bidderB": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderB",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId2},
+				},
+				"bidderC": {
+					BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{
+						{ID: "imp-id3", Ext: json.RawMessage(`{"bidder":{"placementId":"1234"}}`)},
+					}},
+					BidderName:            "bidderC",
+					BidderStoredResponses: nil,
+				},
+			},
+		},
+		{
+			description: "Request with 2 imps: with 1 bidders stored bid response and imp without stored responses and with the same bidder",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id2": {"bidderA": bidRespId2},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID:  "imp-id1",
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+				{
+					ID:  "imp-id2",
+					Ext: json.RawMessage(`{"bidderA": {"placementId":"123"}}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{
+						{ID: "imp-id1", Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`)},
+					}},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id2": bidRespId2},
+				},
+			},
+		},
+		{
+			description: "Request with 2 imps with stored responses and with the same bidder",
+			storedBidResponses: map[string]map[string]json.RawMessage{
+				"imp-id1": {"bidderA": bidRespId1},
+				"imp-id2": {"bidderA": bidRespId2},
+			},
+			imps: []openrtb2.Imp{
+				{
+					ID:  "imp-id1",
+					Ext: json.RawMessage(`"prebid": {}`),
+				},
+				{
+					ID:  "imp-id2",
+					Ext: json.RawMessage(`"prebid": {}`),
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"bidderA": {
+					BidRequest: &openrtb2.BidRequest{Imp: nil},
+					BidderName: "bidderA",
+					BidderStoredResponses: map[string]json.RawMessage{
+						"imp-id1": bidRespId1,
+						"imp-id2": bidRespId2,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		metricsMock := metrics.MetricsEngineMock{}
+		bidderToSyncerKey := map[string]string{}
+		auctionReq := AuctionRequest{
+			BidRequestWrapper:  &openrtb_ext.RequestWrapper{BidRequest: &openrtb2.BidRequest{Imp: test.imps}},
+			UserSyncs:          &emptyUsersync{},
+			StoredBidResponses: test.storedBidResponses,
+		}
+		actualBidderRequests, _, err := cleanOpenRTBRequests(
+			context.Background(),
+			auctionReq,
+			nil,
+			bidderToSyncerKey,
+			&metricsMock,
+			gdpr.SignalNo,
+			gdpr.AlwaysAllow{},
+			config.Privacy{},
+			&config.TCF2{})
+		assert.Empty(t, err, "No errors should be returned")
+		assert.Len(t, actualBidderRequests, len(test.expectedBidderRequests), "result len doesn't match for testCase %s", test.description)
+		for _, actualBidderRequest := range actualBidderRequests {
+			bidderName := string(actualBidderRequest.BidderName)
+			assert.Equal(t, test.expectedBidderRequests[bidderName].BidRequest.Imp, actualBidderRequest.BidRequest.Imp, "incorrect Impressions for testCase %s", test.description)
+			assert.Equal(t, test.expectedBidderRequests[bidderName].BidderStoredResponses, actualBidderRequest.BidderStoredResponses, "incorrect Bidder Stored Responses for testCase %s", test.description)
 		}
 	}
 }
@@ -700,9 +967,9 @@ func TestCleanOpenRTBRequestsCCPA(t *testing.T) {
 		}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
-			Account:    accountConfig,
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
+			Account:           accountConfig,
 		}
 
 		bidderToSyncerKey := map[string]string{}
@@ -764,8 +1031,8 @@ func TestCleanOpenRTBRequestsCCPAErrors(t *testing.T) {
 		assert.NoError(t, err, test.description+":marshal_ext")
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
 		}
 
 		privacyConfig := config.Privacy{
@@ -811,8 +1078,8 @@ func TestCleanOpenRTBRequestsCOPPA(t *testing.T) {
 		req.Regs = &openrtb2.Regs{COPPA: test.coppa}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
 		}
 
 		bidderToSyncerKey := map[string]string{}
@@ -897,8 +1164,8 @@ func TestCleanOpenRTBRequestsSChain(t *testing.T) {
 		}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
 		}
 
 		bidderToSyncerKey := map[string]string{}
@@ -954,8 +1221,8 @@ func TestCleanOpenRTBRequestsBidderParams(t *testing.T) {
 		}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
 		}
 
 		bidderToSyncerKey := map[string]string{}
@@ -1629,8 +1896,8 @@ func TestCleanOpenRTBRequestsLMT(t *testing.T) {
 		req.Device.Lmt = test.lmt
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
 		}
 
 		privacyConfig := config.Privacy{
@@ -1842,9 +2109,9 @@ func TestCleanOpenRTBRequestsGDPR(t *testing.T) {
 		}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
-			Account:    accountConfig,
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
+			Account:           accountConfig,
 		}
 
 		bidderToSyncerKey := map[string]string{}
@@ -1937,9 +2204,9 @@ func TestCleanOpenRTBRequestsGDPRBlockBidRequest(t *testing.T) {
 		}
 
 		auctionReq := AuctionRequest{
-			BidRequest: req,
-			UserSyncs:  &emptyUsersync{},
-			Account:    accountConfig,
+			BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+			UserSyncs:         &emptyUsersync{},
+			Account:           accountConfig,
 		}
 
 		metricsMock := metrics.MetricsEngineMock{}
@@ -2521,8 +2788,8 @@ func TestCleanOpenRTBRequestsSChainMultipleBidders(t *testing.T) {
 	extRequest := unmarshaledExt
 
 	auctionReq := AuctionRequest{
-		BidRequest: req,
-		UserSyncs:  &emptyUsersync{},
+		BidRequestWrapper: &openrtb_ext.RequestWrapper{BidRequest: req},
+		UserSyncs:         &emptyUsersync{},
 	}
 	bidderToSyncerKey := map[string]string{}
 	metrics := metrics.MetricsEngineMock{}
