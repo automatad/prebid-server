@@ -41,10 +41,10 @@
 				  ]
 				},
 				"ext": {
-					"bidder": {
-					  "siteId": "123"
-					}
+				  "bidder": {
+					"siteId": "123"
 				  }
+				}
 			  }
 			],
 			"site": {
@@ -54,12 +54,15 @@
 		},
 		"mockResponse": {
 		  "status": 400,
-          "body": "bad request"
+		  "body": "bad request"
 		}
-	}
+	  }
 	],
-	"expectedMakeBidsErrors": [{
-        "value": "Unexpected status code: 400. Malformed request syntax received.Bad request from publisher.",
-        "comparison": "literal"
-      }]
-  }
+	"expectedMakeBidsErrors": [
+	  {
+		"value": "Unexpected status code: 400. Malformed request syntax received.Bad request from publisher.",
+		"comparison": "literal"
+	  }
+	]
+}
+
