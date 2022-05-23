@@ -1,5 +1,5 @@
 maintainer:
-  email: tech@automatad.com
+  email: "tech@automatad.com"
 gvlVendorID: 42
 modifyingVastXmlAllowed: true
 capabilities:
