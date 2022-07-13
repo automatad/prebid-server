@@ -3,6 +3,7 @@ package automatad
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/mxmCherry/openrtb/v15/openrtb2"
@@ -30,6 +31,12 @@ func (a *adapter) MakeRequests(request *openrtb2.BidRequest, requestInfo *adapte
 		return nil, []error{err}
 	}
 
+	userObj, err := json.Marshal(request.User)
+	if err != nil {
+		return nil, []error{err}
+	}
+
+	log.Println("User Object-", string(userObj))
 	requestData := &adapters.RequestData{
 		Method: "POST",
 		Uri:    a.endpoint,
@@ -74,4 +81,16 @@ func (a *adapter) MakeBids(request *openrtb2.BidRequest, requestData *adapters.R
 		}
 	}
 	return bidResponse, nil
+}
+
+func (a *adapter) MakeTimeoutNotification(req *adapters.RequestData) (*adapters.RequestData, []error) {
+	uri := fmt.Sprintf("https://stg-bid.atmtd.com/timeout")
+	timeoutReq := adapters.RequestData{
+		Method:  "POST",
+		Uri:     uri,
+		Body:    req.Body,
+		Headers: http.Header{},
+	}
+
+	return &timeoutReq, nil
 }
