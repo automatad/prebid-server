@@ -1,4 +1,7 @@
 # Makefile
+#
+GIT_TAG=$(shell git describe --tags)
+TAG = registry.digitalocean.com/automatad/amp/prebid-server:$(GIT_TAG)
 
 all: deps test build
 
@@ -24,4 +27,6 @@ build: test
 
 # image will build a docker image
 image:
-	docker build -t prebid-server .
+	docker build -t $(TAG) .
+	docker push $(TAG)
+	echo $(TAG)
