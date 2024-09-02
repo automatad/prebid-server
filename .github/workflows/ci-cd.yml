@@ -57,6 +57,3 @@ jobs:
       run: |
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-    - name: Build with Make
-      run: make milebuild GIT_TAG=${{ github.event.inputs.gitTag || github.sha }}
