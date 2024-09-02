@@ -38,7 +38,7 @@ jobs:
         ref: ${{ github.event.inputs.branch || github.ref }}
 
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      run: docker build . --file Dockerfile --tag ${{ env.IMAGE_NAME }}:${{ github.sha }} --build-arg TEST=false
 
     - name: Install doctl
       uses: digitalocean/action-doctl@v2
