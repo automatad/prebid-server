@@ -1,4 +1,4 @@
-FROM golang:1.22.3-alpine AS builder
+FROM golang:1.21.3-alpine AS builder
 ENV CGO_ENABLED=0
 RUN mkdir /build
 ADD ./ /build/
